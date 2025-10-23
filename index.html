@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BSIS Exam — Enterprise Application Integration (EAI) — Analytical</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:0;background:#f6f8fb;color:#0f172a;user-select:none;}
+  header{background:#fff;padding:14px 18px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 6px rgba(0,0,0,.08);}
+  header h1{margin:0;font-size:1.15rem;}
+  header .timer{margin-left:auto;padding:8px 12px;background:#ffeef0;color:#b00020;font-weight:700;border-radius:999px;}
+  main{max-width:980px;margin:18px auto;padding:14px;}
+  .card{background:#fff;padding:16px;border-radius:12px;box-shadow:0 6px 16px rgba(13,38,76,0.04);margin-bottom:14px;}
+  label{display:block;margin:8px 0 4px;font-weight:600;}
+  select,input[type=text]{width:100%;padding:8px;border-radius:6px;border:1px solid #d1d5db;}
+  button{background:#1f6feb;color:#fff;border:none;padding:10px 14px;border-radius:8px;font-weight:700;cursor:pointer;}
+  button.secondary{background:#eef2ff;color:#1f6feb;}
+  .hidden{display:none!important;}
+  .muted{color:#6b7280;font-size:.9rem;}
+  hr{border:0;border-top:1px solid #efefef;margin:12px 0;}
+  .question-block{margin-bottom:12px;}
+  .feedback{margin-top:6px;font-size:.95rem;}
+  .correct{color:green;}
+  .wrong{color:#b91c1c;}
+  @media (max-width:520px){ header h1{font-size:1rem} }
+</style>
+</head>
+<body>
+<header>
+  <h1>BSIS Exam — Enterprise Application Integration (EAI)</h1>
+  <div class="timer" id="timer">40:00</div>
+</header>
+
+<main>
+  <section class="card" id="accessCodeSection">
+    <label for="examCodeInput">Enter Exam Access Code:</label>
+    <input id="examCodeInput" type="text" placeholder="Enter code here" autocomplete="off" />
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+      <button type="button" id="examCodeBtn">Start Exam</button>
+      <div style="margin-left:auto" class="muted">Enter code provided by your instructor.</div>
+    </div>
+    <p id="codeError" class="muted" style="color:#b00020;display:none;margin-top:8px;">Incorrect code. Please try again.</p>
+  </section>
+
+  <form id="examForm" class="card hidden" autocomplete="off">
+    <label for="studentName">Student Name</label>
+    <input id="studentName" type="text" name="studentName" placeholder="Last name, First name" />
+    <hr>
+
+    <div id="questionContainer"></div>
+
+    <hr>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button type="submit" id="submitBtn">Submit Answers</button>
+      <button type="button" class="secondary" id="downloadBtn" disabled>Download Answers (.txt)</button>
+      <div style="margin-left:auto" class="muted">Make sure your name is filled before submitting.</div>
+    </div>
+
+    <p id="submitMsg" class="muted" style="display:none;margin-top:8px;color:green;"></p>
+  </form>
+</main>
+
+<script>
+(function(){
+  // ===== Configuration =====
+  const ACCESS_CODE = "IS2025"; // case-insensitive
+  const INITIAL_SECONDS = 40 * 60; // 30 minutes
+  const PASS_PERCENT = 75;
+
+  // ===== DOM refs =====
+  const timerEl = document.getElementById('timer');
+  const accessSection = document.getElementById('accessCodeSection');
+  const examCodeInput = document.getElementById('examCodeInput');
+  const examCodeBtn = document.getElementById('examCodeBtn');
+  const codeError = document.getElementById('codeError');
+  const examForm = document.getElementById('examForm');
+  const questionContainer = document.getElementById('questionContainer');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const submitMsg = document.getElementById('submitMsg');
+
+  // ===== State =====
+  let totalSeconds = INITIAL_SECONDS;
+  let timerInterval = null;
+  let examStarted = false;
+
+  // ===== 40 Analytical / Logical EAI Questions =====
+  // Each { q: string, opts: [4 strings], ans: 'A'|'B'|'C'|'D' }
+  const qa = [
+    { q: "A company has multiple systems with inconsistent customer IDs. Which integration step best resolves future identity mismatches?", 
+      opts: ["Scrape UI screens to map IDs","Establish a canonical customer ID and implement an identity translation layer","Do nothing and accept duplicates","Use manual reconciliation daily"], ans: "B" },
+
+    { q: "Your legacy ERP exposes no APIs. The business demands near-real-time data. The least risky integration approach is to:", 
+      opts: ["Replace the ERP immediately","Deploy an adapter that exposes APIs over the ERP (wrapper)","Use scheduled CSV exports only","Use developers to copy-paste data"], ans: "B" },
+
+    { q: "Two teams argue: use synchronous REST calls vs. asynchronous messaging. Which choice is better when latency and resilience are primary concerns?", 
+      opts: ["Synchronous REST (always)","Asynchronous message queue (decouples producer/consumer)","Screen scraping","Direct DB access"], ans: "B" },
+
+    { q: "An API gateway shows high error spikes after a new client rollout. You should first:", 
+      opts: ["Block the client permanently","Check client usage patterns and add rate-limiting or throttling rules for that client","Delete all logs","Swap hardware"], ans: "B" },
+
+    { q: "A service returns XML with deeply nested elements; developers prefer JSON. Best transformation strategy in an integration layer is to:", 
+      opts: ["Modify the source service directly","Use a transformation (XSLT or mapping) at the ESB or API layer to produce JSON","Force clients to parse XML","Stop integration"], ans: "B" },
+
+    { q: "You must guarantee 'exactly-once' processing for financial transactions. Which pattern best helps?", 
+      opts: ["Fire-and-forget messaging","Idempotent consumers and transactional message handling with deduplication","Only REST retries without idempotency","Use screen scraping"], ans: "B" },
+
+    { q: "A business requires that changes to order status be visible to multiple systems within seconds. Which architecture best supports this?", 
+      opts: ["Periodic batch jobs every night","Event-driven architecture with message publish/subscribe","Manual email notifications","CSV file exchange weekly"], ans: "B" },
+
+    { q: "An integration test environment shows time zone related data errors. What is the most appropriate fix?", 
+      opts: ["Ignore time zones—document the bug","Standardize on UTC across systems and convert at the UI boundary","Store local times only","Stop using timestamps"], ans: "B" },
+
+    { q: "When transforming data between systems, where should the business rules ideally reside?", 
+      opts: ["Hard-coded in each client","In a centralized integration layer or rules engine where maintainers manage mappings","Only in the database triggers","In UI JavaScript"], ans: "B" },
+
+    { q: "A mobile app needs aggregated data from three services for a dashboard. To reduce client complexity you should:", 
+      opts: ["Have the mobile app call the three services directly","Create a BFF (Backend-for-Frontend) or aggregator API that composes results","Return raw service payloads to the app","Use screen scraping on the dashboard"], ans: "B" },
+
+    { q: "You plan to migrate an on-prem legacy system to a cloud SaaS offering. To keep integrations stable during migration you should:", 
+      opts: ["Cut over all integrations at once","Introduce an abstraction layer (API facade) so integration endpoints remain stable during backend migration","Expose the old DB to cloud directly","Tell users to re-register"], ans: "B" },
+
+    { q: "A partner API frequently changes response fields without notice. How do you protect your integration?", 
+      opts: ["Hard-code indices into parsers","Use a contract-first approach with versioning and validation (e.g., OpenAPI) and fallbacks","Stop calling the API","Parse with brittle string operations"], ans: "B" },
+
+    { q: "If you must exchange large binary files between systems reliably, the recommended pattern is:", 
+      opts: ["Embed binary in JSON payloads","Use dedicated file transfer (SFTP) or presigned URLs + metadata via APIs","Send them via email","Store on desktop and ask users to upload manually"], ans: "B" },
+
+    { q: "A microservice returns intermittent 500 errors under load. Which initial integration-level action is most appropriate?", 
+      opts: ["Retry indefinitely on the client without backoff","Implement retries with exponential backoff and circuit breaker on the client or gateway","Remove monitoring","Increase batch sizes"], ans: "B" },
+
+    { q: "Your monitoring shows data latency between systems increasing over time. The most direct integration diagnostic step is to:", 
+      opts: ["Call it acceptable","Trace end-to-end requests (distributed tracing) and inspect queue/backlog metrics","Delete logs to save space","Switch off monitoring"], ans: "B" },
+
+    { q: "During integration design you must ensure data privacy. Which is the best immediate control?", 
+      opts: ["Send all data in plain text","Apply field-level encryption and enforce TLS for transport plus strict access controls","Only allow admins to see data","Move data around freely"], ans: "B" },
+
+    { q: "Two systems use different date formats and cause reconciliation mismatches. The best long-term integration fix is to:", 
+      opts: ["Use a transformation layer to normalize formats and add validation rules at integration boundaries","Change only one system's UI","Ignore mismatches","Use manual spreadsheets"], ans: "A" },
+
+    { q: "You have to integrate a third-party service but cannot share your internal database schema. Best approach:", 
+      opts: ["Expose internal DB directly","Design an API contract exposing only required fields and mapping to internal schema in the integration layer","Give full DB read access","Copy DB to partner"], ans: "B" },
+
+    { q: "A system requires guaranteed ordering of messages. Which pattern should you implement?", 
+      opts: ["Unordered concurrent consumers","Partitioned message queues with ordering keys (or single consumer per partition)","Multiple parallel queues with no keys","HTTP polling only"], ans: "B" },
+
+    { q: "During high-volume events, latency spikes. Which integration change will most reduce peak load on downstream systems?", 
+      opts: ["Increase client polling frequency","Introduce backpressure and buffering (message queues) and rate-limit clients","Remove load balancers","Send larger payloads"], ans: "B" },
+
+    { q: "A team suggests screen scraping to get data quickly. Why is this risky long-term?", 
+      opts: ["It is always secure","UI changes frequently break scrapers and there is no formal contract or security model","It uses APIs","It enforces stable contracts"], ans: "B" },
+
+    { q: "When migrating to event-driven integration, which measure helps ensure no data loss during cutover?", 
+      opts: ["Turn off all producers","Use a dual-write or change-data-capture (CDC) approach that seeds events while maintaining consistency","Delete the old database","Stop integration"] , ans: "B" },
+
+    { q: "You observe duplicated messages processed downstream. A robust integration fix is to:", 
+      opts: ["Ignore duplicates","Implement idempotency keys and deduplication at the consumer or middleware","Drop messages randomly","Restart services frequently"], ans: "B" },
+
+    { q: "A partner's API requires XML SOAP messages; your stack is JSON/REST. Integration cost-effective solution:", 
+      opts: ["Refuse to integrate","Use a translation middleware that converts between JSON/REST and SOAP/XML","Rewrite your entire stack to SOAP","Screen-scrape partner UI"], ans: "B" },
+
+    { q: "If SLA requires 99.99% availability, which integration architecture choice supports this requirement?", 
+      opts: ["Single server hosting both API and DB","Redundant services, autoscaling, multi-AZ deployment, and resilient messaging","No monitoring","Manual restart scripts"], ans: "B" },
+
+    { q: "You need to minimize data transferred across regions for compliance. Which integration strategy helps?", 
+      opts: ["Centralize all data in one region","Use federated integration where sensitive data stays in-region and only metadata or pointers cross-region","Transfer everything unencrypted","Use longer polling intervals"], ans: "B" },
+
+    { q: "A change to a central data model breaks many consumers. Best governance step to prevent this in future:", 
+      opts: ["Allow breaking changes without notice","Establish schema/version management and consumer-driven contracts with backward compatibility","Hard-code clients","Disable all updates"], ans: "B" },
+
+    { q: "You must integrate a high-volume IoT stream. Which pattern is suitable for ingestion and downstream processing?", 
+      opts: ["Direct synchronous HTTP from every device","Use an ingestion layer with partitioned messaging (Kafka-like) and stream processing","Use Excel spreadsheets","Use SOAP calls per device"], ans: "B" },
+
+    { q: "A legacy system only supports a propriety binary protocol. To integrate modern systems you should:", 
+      opts: ["Stop using legacy system","Build an adapter/bridge that translates protocol to modern APIs","Expose the binary protocol to the internet","Force vendors to change immediately"], ans: "B" },
+
+    { q: "For security auditing of integration flows, which logging strategy is recommended?", 
+      opts: ["No logging to save space","Structured, centralized logging with correlation IDs and transport-level encryption for logs","Only local log files on each host","Log to client consoles"], ans: "B" },
+
+    { q: "When choosing between point-to-point connectors and a central ESB, which factor favors ESB?", 
+      opts: ["Very few integrations only","Many systems needing transformation, routing, and centralized governance","No transformations required","No need for monitoring"], ans: "B" },
+
+    { q: "A downstream system is overwhelmed by spike traffic despite retries. The best immediate mitigation is to:", 
+      opts: ["Increase retry frequency","Implement client-side exponential backoff and enforce rate limits at the gateway","Disable all retries","Remove authentication"], ans: "B" },
+
+    { q: "Your team wants to reduce coupling while enabling versioned APIs. Which approach achieves that?", 
+      opts: ["Deploy breaking changes directly","Implement API versioning with backward compatibility and create deprecation timelines","Change DB schema without notice","Use screen scraping"], ans: "B" },
+
+    { q: "For analytical reporting, the data team wants a consistent timeline of records. Which integration addition helps ensure consistency?", 
+      opts: ["Ad hoc ETL on demand","Use change-data-capture (CDC) with timestamped events and transactional guarantees","Manual CSV uploads daily","Random sampling"], ans: "B" },
+
+    { q: "A new regulation requires that certain personal data never leaves region A. Integration compliance option:", 
+      opts: ["Ignore regulation","Apply data residency: keep PII in-region and provide anonymized or tokenized references externally","Replicate all PII to all regions","Delete all data"], ans: "B" },
+
+    { q: "Your API gateway must support both OAuth2 and basic auth for different partners. Best practice is to:", 
+      opts: ["Implement authentication at each backend service","Offload authentication to the gateway with pluggable policies per route","Hard-code credentials in clients","Disable auth for speed"], ans: "B" },
+
+    { q: "When troubleshooting an integration that occasionally loses context across calls, which addition will most help diagnosis?", 
+      opts: ["Remove logs","Add correlation IDs propagated across calls and surface them in logs/traces","Only check UI","Restart services hourly"], ans: "B" },
+
+    { q: "If a service schema evolves (adding optional fields), which consumer strategy minimizes breakage?", 
+      opts: ["Fail if schema changes","Design consumers to ignore unknown fields and handle optional fields gracefully","Strictly require exact schema","Drop optional fields on producer side"], ans: "B" },
+
+    { q: "Your company must prove message processing for audits. Which integration capability do you add?", 
+      opts: ["No record keeping","Durable message persistence with an audit log and immutable event storage","Only ephemeral memory queues","Manual note-taking"], ans: "B" },
+
+    { q: "Finally — you must pick an integration approach for a complex, heterogeneous landscape (legacy + cloud + partners). The most pragmatic enterprise approach is to:", 
+      opts: ["Force all systems to a single vendor immediately","Adopt a hybrid strategy: API facades, adapters for legacy, ESB or messaging backbone, and strong governance","Only use screen scraping","Ignore integration and hope for the best"], ans: "B" }
+  ];
+
+  // ===== Build question DOM safely =====
+  function buildQuestions(){
+    questionContainer.innerHTML = '';
+    qa.forEach((item, idx) => {
+      const i = idx + 1;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'question-block';
+      const label = document.createElement('label');
+      label.setAttribute('for', 'q' + i);
+      label.textContent = `${i}. ${item.q}`;
+      wrapper.appendChild(label);
+
+      const select = document.createElement('select');
+      select.name = `q${i}`;
+      select.id = `q${i}`;
+
+      const empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = 'Select answer';
+      select.appendChild(empty);
+
+      const letters = ['A','B','C','D'];
+      for(let j=0;j<4;j++){
+        const opt = document.createElement('option');
+        opt.value = letters[j];
+        opt.textContent = `${letters[j]}. ${item.opts[j]}`;
+        select.appendChild(opt);
+      }
+
+      wrapper.appendChild(select);
+      questionContainer.appendChild(wrapper);
+    });
+  }
+
+  // ===== Shuffle question blocks to randomize order =====
+  function shuffleQuestionBlocks(){
+    const nodes = Array.from(questionContainer.children);
+    for (let i = nodes.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      questionContainer.appendChild(nodes[j]);
+      nodes.splice(j, 1);
+    }
+  }
+
+  // ===== Timer functions =====
+  function updateTimer(){
+    const m = Math.floor(totalSeconds/60);
+    const s = totalSeconds % 60;
+    timerEl.textContent = (m<10? '0'+m : m) + ':' + (s<10? '0'+s : s);
+  }
+  function startTimer(){
+    clearInterval(timerInterval);
+    timerInterval = setInterval(()=>{
+      totalSeconds--;
+      if(totalSeconds <= 0){
+        clearInterval(timerInterval);
+        lockExamTimeout();
+      }
+      updateTimer();
+    },1000);
+  }
+  function lockExamTimeout(){
+    examForm.querySelectorAll('select,input').forEach(el => el.disabled = true);
+    submitMsg.style.display = 'block';
+    submitMsg.textContent = 'Time is up. Exam ended.';
+  }
+
+  // ===== Start exam (case-insensitive access code, Enter supported) =====
+  function tryStartExam(){
+    const code = (examCodeInput.value || '').trim().toUpperCase();
+    if(code === ACCESS_CODE.toUpperCase()){
+      codeError.style.display = 'none';
+      buildQuestions();
+      try { shuffleQuestionBlocks(); } catch(e){ /* ignore */ }
+      accessSection.classList.add('hidden');
+      examForm.classList.remove('hidden');
+      examStarted = true;
+      startTimer();
+    } else {
+      codeError.style.display = 'block';
+    }
+  }
+
+  examCodeBtn.addEventListener('click', tryStartExam);
+  examCodeInput.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); tryStartExam(); }
+  });
+
+  // ===== Strict anti-cheat (immediate reload on tab switch or blur) =====
+  function strictReload(){ if(examStarted) location.reload(); }
+  document.addEventListener('visibilitychange', function(){ if(document.hidden) strictReload(); });
+  window.addEventListener('blur', function(){ if(examStarted) strictReload(); });
+
+  // ===== Anti-copy protections =====
+  document.addEventListener('contextmenu', e => e.preventDefault());
+  ['copy','cut','selectstart'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
+  document.addEventListener('keydown', function(e){
+    if((e.ctrlKey || e.metaKey) && ['c','x','u','s','a','p'].includes(e.key.toLowerCase())) e.preventDefault();
+  });
+
+  // ===== Submit: auto-check, popup score, inline feedback with correct answers shown when wrong =====
+  examForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    const name = (document.getElementById('studentName').value || '').trim();
+    if(!name){ alert('Please enter your name before submitting.'); return; }
+
+    const total = qa.length;
+    let correctCount = 0;
+    let output = `Student Name: ${name}\n\n`;
+
+    // remove previous feedback (if any)
+    questionContainer.querySelectorAll('.feedback').forEach(el => el.remove());
+
+    qa.forEach((item, idx) => {
+      const i = idx + 1;
+      const sel = examForm.querySelector(`[name=q${i}]`);
+      const val = sel ? (sel.value || '') : '';
+      output += `Q${i}: ${val}\n`;
+      const feedback = document.createElement('div');
+      feedback.className = 'feedback';
+      if(val === item.ans){
+        correctCount++;
+        feedback.textContent = '✅ Correct';
+        feedback.classList.add('correct');
+      } else {
+        const correctText = item.opts[['A','B','C','D'].indexOf(item.ans)];
+        feedback.innerHTML = `❌ Wrong — Correct answer: <b>${item.ans}. ${correctText}</b>`;
+        feedback.classList.add('wrong');
+      }
+      if(sel && sel.parentNode) sel.parentNode.appendChild(feedback);
+      if(sel) sel.disabled = true;
+    });
+
+    const percent = Math.round((correctCount / total) * 100);
+    const passed = percent >= PASS_PERCENT;
+    const status = passed ? 'Passed' : 'Failed';
+
+    alert(`Your score: ${correctCount}/${total} (${percent}%) – ${status}`);
+
+    output += `\nScore: ${correctCount}/${total} (${percent}%) – ${status}\n`;
+    window._latestExamData = output;
+    downloadBtn.disabled = false;
+    submitMsg.style.display = 'block';
+    submitMsg.textContent = 'Answers and feedback shown. You can download results.';
+  });
+
+  // ===== Download answers + score =====
+  downloadBtn.addEventListener('click', function(){
+    const data = window._latestExamData || '';
+    if(!data){ alert('Submit first.'); return; }
+    const blob = new Blob([data], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const name = (document.getElementById('studentName').value || 'answers').replace(/\s+/g,'_');
+    a.href = url;
+    a.download = `${name}_answers.txt`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 3000);
+  });
+
+  // ===== Initialize display =====
+  (function init(){
+    updateTimer();
+    if(window.top !== window.self) window.top.location = window.self.location;
+  })();
+
+  function updateTimer(){
+    const m = Math.floor(totalSeconds/60);
+    const s = totalSeconds % 60;
+    timerEl.textContent = (m<10? '0'+m : m) + ':' + (s<10? '0'+s : s);
+  }
+
+})(); // end IIFE
+</script>
+</body>
+</html>
